@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import os
 import re
@@ -6,11 +7,13 @@ import sys
 import aiofiles
 from hbmqtt.client import MQTTClient
 
-CERTFILE = os.path.expanduser("~/Projects/mqtt_certs/ca.crt")
-# PATH = "/sys/devices/platform/unipi_plc/io_group2/di_2_01/di_value"
-INTERVAL = 500e-3
+# Default async waiting interval
+SLEEP_INTERVAL = 500e-3
 # unipi sysfs root folder where to find all digital inputs
 SYSFS_ROOT = "/sys/devices/platform/unipi_plc"
+# MQTT default port numbers
+MQTT_DEFAULT_PORT = 1883
+MQTT_TLS_PORT = 8883
 
 
 class DigitalInput:
@@ -51,10 +54,10 @@ class DigitalInput:
             self._value = updated
 
 
-async def poll(digital_inputs):
+async def poll(digital_inputs, sleep_time):
     while True:
         asyncio.gather(*[digital_input.update() for digital_input in digital_inputs])
-        await asyncio.sleep(INTERVAL)
+        await asyncio.sleep(sleep_time)
 
 
 def find_digital_input_paths(folder, regex=DigitalInput.FOLDER_REGEX):
@@ -74,19 +77,39 @@ def create_digital_inputs(root, client):
 
 
 def main():
-    mqtt_host = "raspberrypi.lan"
-    mqtt_port = 8883
-    mqtt_certfile = CERTFILE
+    parser = argparse.ArgumentParser()
+    parser.add_argument("mqtt_host", help="MQTT broker host")
+    parser.add_argument("--mqtt_port", type=int)
+    parser.add_argument(
+        "--mqtt_cafile", help="Optional path to CA file for MQTT over TLS"
+    )
+    parser.add_argument(
+        "--sleep", type=float, default=SLEEP_INTERVAL, help="Sleep time between updates"
+    )
+    parser.add_argument(
+        "--sysfs_root",
+        default=SYSFS_ROOT,
+        help="sysfs root folder to scan for digital inputs",
+    )
+    args = parser.parse_args()
+
+    # Determine MQTT port
+    if args.mqtt_port:
+        mqtt_port = args.mqtt_port
+    elif args.mqtt_cafile:
+        mqtt_port = MQTT_TLS_PORT
+    else:
+        mqtt_port = MQTT_DEFAULT_PORT
 
     # Create MQTT client
     client = MQTTClient()
-    client.connect(mqtt_host, mqtt_port, cafile=mqtt_certfile)
+    client.connect(args.mqtt_host, mqtt_port, cafile=args.mqtt_cafile)
 
     # Digital inputs
     digital_inputs = create_digital_inputs(SYSFS_ROOT, client)
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(poll(digital_inputs))
+    loop.run_until_complete(poll(digital_inputs, args.sleep))
     loop.close()
 
 
