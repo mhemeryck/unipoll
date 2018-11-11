@@ -1,14 +1,15 @@
 import asyncio
-from datetime import datetime
 import os
 import sys
+from datetime import datetime
 
 import aiofiles
 import paho.mqtt.client as mqtt
 
 CERTFILE = os.path.expanduser("~/Projects/mqtt_certs/ca.crt")
-PATH = "/sys/devices/platform/unipi_plc/io_group2/di_2_01/di_value"
-INTERVAL = 1
+# PATH = "/sys/devices/platform/unipi_plc/io_group2/di_2_01/di_value"
+PATH = os.path.expanduser("~/Projects/unipoll/test.md")
+INTERVAL = 500e-3
 
 
 class DigitalInput:
@@ -25,11 +26,10 @@ class DigitalInput:
         """update internal value with latest"""
         async with aiofiles.open(self.path, "r") as fh:
             updated = await fh.read() == DigitalInput.TRUE_VALUE
-            if updated != self._value:
-                if not self._value:
-                    # Only do callback on leading edge
-                    self.callback(self)
-                self._value = updated
+        if updated != self._value:
+            if not self._value:
+                self.callback(self)
+            self._value = updated
 
 
 async def poll(client):
@@ -37,9 +37,13 @@ async def poll(client):
         client.publish(digital_input.topic, payload=str(datetime.now()))
 
     digital_input = DigitalInput(PATH, "di_2_01", callback)
+    di2 = DigitalInput(PATH, "buzz", callback)
     while True:
-        await digital_input.update()
-        asyncio.sleep(INTERVAL)
+        asyncio.gather(
+            digital_input.update(),
+            di2.update()
+        )
+        await asyncio.sleep(INTERVAL)
 
 
 def main():
