@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 
 import aiofiles
-import paho.mqtt.client as mqtt
+from hbmqtt.client import MQTTClient
 
 CERTFILE = os.path.expanduser("~/Projects/mqtt_certs/ca.crt")
 # PATH = "/sys/devices/platform/unipi_plc/io_group2/di_2_01/di_value"
@@ -33,21 +33,18 @@ class DigitalInput:
 
 
 async def poll(client):
-    def callback(digital_input):
-        client.publish(digital_input.topic, payload=str(datetime.now()))
+    async def callback(digital_input):
+        await client.publish(digital_input.topic, payload=str(datetime.now()))
 
     digital_input = DigitalInput(PATH, "di_2_01", callback)
     di2 = DigitalInput(PATH, "buzz", callback)
     while True:
-        asyncio.gather(
-            digital_input.update(),
-            di2.update()
-        )
+        asyncio.gather(digital_input.update(), di2.update())
         await asyncio.sleep(INTERVAL)
 
 
 def main():
-    client = mqtt.Client()
+    client = MQTTClient()
     client.tls_set(CERTFILE)
     client.connect("raspberrypi.lan", 8883)
 
