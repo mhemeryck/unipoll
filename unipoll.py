@@ -31,6 +31,7 @@ class DigitalInput:
         self.client = client
         self.topic = topic or DigitalInput._topic_from_path(path)
         self._value = value
+        self._file_handle = None
 
     @classmethod
     def _topic_from_path(cls, path):
@@ -43,11 +44,17 @@ class DigitalInput:
     def _di_value_path(self):
         return os.path.join(self.path, DigitalInput._DI_VALUE_FILE)
 
+    async def _read(self):
+        """Read file, keep handle open"""
+        if self._file_handle is None:
+            self._file_handle = await aiofiles.open(self._di_value_path, "r")
+        await self._file_handle.seek(0)
+        return await self._file_handle.read()
+
     async def update(self):
         """update internal value with latest"""
         # Read the contents
-        async with aiofiles.open(self._di_value_path, "r") as fh:
-            updated = await fh.read() == DigitalInput.TRUE_VALUE
+        updated = await self._read() == DigitalInput.TRUE_VALUE
 
         # Check for updates
         if updated != self._value:
