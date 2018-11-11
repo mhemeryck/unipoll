@@ -11,9 +11,13 @@ from hbmqtt.client import MQTTClient
 logger = logging.getLogger(__name__)
 
 # Default async waiting interval
-SLEEP_INTERVAL = 500e-3
+SLEEP_INTERVAL = 250e-3
 # unipi sysfs root folder where to find all digital inputs
 SYSFS_ROOT = "/sys/devices/platform/unipi_plc"
+# Log formatter
+LOG_FORMAT = (
+    "[%(asctime)s] %(name)s {%(filename)s:%(lineno)d} %(levelname)s - %(message)s"
+)
 
 
 class DigitalInput:
@@ -90,6 +94,8 @@ def main():
         help="sysfs root folder to scan for digital inputs",
     )
     args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 
     loop = asyncio.get_event_loop()
 
