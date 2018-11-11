@@ -111,7 +111,7 @@ def main():
     loop.run_until_complete(client.connect(args.uri, cafile=args.cafile))
 
     # Digital inputs
-    digital_inputs = create_digital_inputs(SYSFS_ROOT, client)
+    digital_inputs = create_digital_inputs(args.sysfs_root, client)
 
     loop.run_until_complete(poll(digital_inputs, args.sleep))
     loop.close()
