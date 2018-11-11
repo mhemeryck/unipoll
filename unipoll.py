@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import logging
 import os
 import re
 import sys
@@ -7,13 +8,12 @@ import sys
 import aiofiles
 from hbmqtt.client import MQTTClient
 
+logger = logging.getLogger(__name__)
+
 # Default async waiting interval
 SLEEP_INTERVAL = 500e-3
 # unipi sysfs root folder where to find all digital inputs
 SYSFS_ROOT = "/sys/devices/platform/unipi_plc"
-# MQTT default port numbers
-MQTT_DEFAULT_PORT = 1883
-MQTT_TLS_PORT = 8883
 
 
 class DigitalInput:
@@ -49,7 +49,8 @@ class DigitalInput:
         if updated != self._value:
             # In case of leading edge, trigger
             if not self._value:
-                await self.client.publish(self.topic, "test_message")
+                logger.info("Input toggle for %s", self.topic)
+                await self.client.publish(self.topic, b"test_message")
             # Update the value
             self._value = updated
 
@@ -78,11 +79,8 @@ def create_digital_inputs(root, client):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("mqtt_host", help="MQTT broker host")
-    parser.add_argument("--mqtt_port", type=int)
-    parser.add_argument(
-        "--mqtt_cafile", help="Optional path to CA file for MQTT over TLS"
-    )
+    parser.add_argument("uri", help="MQTT broker URI")
+    parser.add_argument("--cafile", help="Optional path to CA file for MQTT over TLS")
     parser.add_argument(
         "--sleep", type=float, default=SLEEP_INTERVAL, help="Sleep time between updates"
     )
@@ -93,22 +91,15 @@ def main():
     )
     args = parser.parse_args()
 
-    # Determine MQTT port
-    if args.mqtt_port:
-        mqtt_port = args.mqtt_port
-    elif args.mqtt_cafile:
-        mqtt_port = MQTT_TLS_PORT
-    else:
-        mqtt_port = MQTT_DEFAULT_PORT
+    loop = asyncio.get_event_loop()
 
     # Create MQTT client
     client = MQTTClient()
-    client.connect(args.mqtt_host, mqtt_port, cafile=args.mqtt_cafile)
+    loop.run_until_complete(client.connect(args.uri, cafile=args.cafile))
 
     # Digital inputs
     digital_inputs = create_digital_inputs(SYSFS_ROOT, client)
 
-    loop = asyncio.get_event_loop()
     loop.run_until_complete(poll(digital_inputs, args.sleep))
     loop.close()
 
