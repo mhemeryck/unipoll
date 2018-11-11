@@ -80,12 +80,13 @@ def main():
 
     # Create MQTT client
     client = MQTTClient()
-    if mqtt_certfile is not None:
-        client.tls_set(mqtt_certfile)
-    client.connect(mqtt_host, mqtt_port)
+    client.connect(mqtt_host, mqtt_port, cafile=mqtt_certfile)
+
+    # Digital inputs
+    digital_inputs = create_digital_inputs(SYSFS_ROOT, client)
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(poll(client))
+    loop.run_until_complete(poll(digital_inputs))
     loop.close()
 
 
